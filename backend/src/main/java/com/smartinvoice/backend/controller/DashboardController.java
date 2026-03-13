@@ -6,9 +6,20 @@ import com.smartinvoice.backend.entity.Product;
 import com.smartinvoice.backend.repository.InvoiceRepository;
 import com.smartinvoice.backend.repository.ProductRepository;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.HttpHeaders;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
+import com.itextpdf.kernel.pdf.PdfWriter;
+import com.itextpdf.kernel.pdf.PdfDocument;
+import com.itextpdf.layout.Document;
+import com.itextpdf.layout.element.Paragraph;
+import com.itextpdf.layout.element.Table;
+import com.itextpdf.layout.properties.UnitValue;
+import org.apache.poi.ss.usermodel.*;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
+import java.io.ByteArrayOutputStream;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
@@ -99,22 +110,55 @@ public class DashboardController {
     
     @GetMapping("/export/excel")
     public ResponseEntity<byte[]> exportToExcel() {
-        List<Product> products = productRepository.findAll();
-        
-        StringBuilder csv = new StringBuilder();
-        csv.append("ID,Name,Stock Left,Min Stock\n");
-        
-        for (Product p : products) {
-            csv.append(p.getId()).append(",")
-               .append(p.getName()).append(",")
-               .append(p.getStockLeft()).append(",")
-               .append(p.getMinStock()).append("\n");
+        try {
+            List<Product> products = productRepository.findAll();
+            
+            Workbook workbook = new XSSFWorkbook();
+            Sheet sheet = workbook.createSheet("Inventory");
+            
+            // Header
+            Row headerRow = sheet.createRow(0);
+            CellStyle headerStyle = workbook.createCellStyle();
+            Font headerFont = workbook.createFont();
+            headerFont.setBold(true);
+            headerStyle.setFont(headerFont);
+            
+            String[] headers = {"ID", "Name", "Stock Left", "Min Stock"};
+            for (int i = 0; i < headers.length; i++) {
+                Cell cell = headerRow.createCell(i);
+                cell.setCellValue(headers[i]);
+                cell.setCellStyle(headerStyle);
+            }
+            
+            // Data
+            int rowNum = 1;
+            for (Product p : products) {
+                Row row = sheet.createRow(rowNum++);
+                row.createCell(0).setCellValue(p.getId());
+                row.createCell(1).setCellValue(p.getName());
+                row.createCell(2).setCellValue(p.getStockLeft());
+                row.createCell(3).setCellValue(p.getMinStock());
+            }
+            
+            // Auto-size columns
+            for (int i = 0; i < headers.length; i++) {
+                sheet.autoSizeColumn(i);
+            }
+            
+            ByteArrayOutputStream outputStream = new ByteArrayOutputStream();
+            workbook.write(outputStream);
+            workbook.close();
+            
+            HttpHeaders headersResponse = new HttpHeaders();
+            headersResponse.setContentType(MediaType.parseMediaType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"));
+            headersResponse.setContentDispositionFormData("attachment", "inventory.xlsx");
+            
+            return ResponseEntity.ok()
+                .headers(headersResponse)
+                .body(outputStream.toByteArray());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
         }
-        
-        return ResponseEntity.ok()
-            .header("Content-Disposition", "attachment; filename=inventory.csv")
-            .header("Content-Type", "text/csv")
-            .body(csv.toString().getBytes());
     }
     
     @PostMapping("/sync/tally")
@@ -126,45 +170,103 @@ public class DashboardController {
     
     @GetMapping("/export/report")
     public ResponseEntity<byte[]> exportReport() {
-        List<Invoice> invoices = invoiceRepository.findAll();
-        
-        StringBuilder report = new StringBuilder();
-        report.append("DASHBOARD REPORT\n\n");
-        report.append("Total Invoices: ").append(invoices.size()).append("\n");
-        report.append("Total Products: ").append(productRepository.count()).append("\n\n");
-        report.append("Recent Invoices:\n");
-        
-        for (Invoice inv : invoices) {
-            report.append(inv.getVendor()).append(" - ")
-                  .append(inv.getItems()).append(" items - Rs.")
-                  .append(inv.getAmount()).append("\n");
+        try {
+            List<Invoice> invoices = invoiceRepository.findAll();
+            
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            PdfWriter writer = new PdfWriter(baos);
+            PdfDocument pdf = new PdfDocument(writer);
+            Document document = new Document(pdf);
+            
+            // Title
+            document.add(new Paragraph("DASHBOARD REPORT")
+                .setFontSize(20)
+                .setBold());
+            document.add(new Paragraph("\n"));
+            
+            // Summary
+            document.add(new Paragraph("Total Invoices: " + invoices.size()));
+            document.add(new Paragraph("Total Products: " + productRepository.count()));
+            document.add(new Paragraph("\n"));
+            
+            // Recent Invoices
+            document.add(new Paragraph("Recent Invoices:").setBold());
+            
+            Table table = new Table(UnitValue.createPercentArray(new float[]{2, 1, 2}));
+            table.setWidth(UnitValue.createPercentValue(100));
+            
+            table.addHeaderCell("Vendor");
+            table.addHeaderCell("Items");
+            table.addHeaderCell("Amount");
+            
+            for (Invoice inv : invoices) {
+                table.addCell(inv.getVendor());
+                table.addCell(String.valueOf(inv.getItems()));
+                table.addCell("Rs. " + String.format("%.2f", inv.getAmount()));
+            }
+            
+            document.add(table);
+            document.close();
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDispositionFormData("attachment", "report.pdf");
+            
+            return ResponseEntity.ok()
+                .headers(headers)
+                .body(baos.toByteArray());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
         }
-        
-        return ResponseEntity.ok()
-            .header("Content-Disposition", "attachment; filename=report.txt")
-            .header("Content-Type", "text/plain")
-            .body(report.toString().getBytes());
     }
     
     @GetMapping("/reorder-list")
     public ResponseEntity<byte[]> generateReorderList() {
-        List<Product> lowStock = productRepository.findLowStockProducts();
-        
-        StringBuilder list = new StringBuilder();
-        list.append("REORDER LIST\n\n");
-        list.append("Products Below Minimum Stock:\n\n");
-        
-        for (Product p : lowStock) {
-            int needed = p.getMinStock() - p.getStockLeft();
-            list.append(p.getName()).append(" - ")
-                .append("Current: ").append(p.getStockLeft())
-                .append(", Min: ").append(p.getMinStock())
-                .append(", Order: ").append(needed).append(" units\n");
+        try {
+            List<Product> lowStock = productRepository.findLowStockProducts();
+            
+            ByteArrayOutputStream baos = new ByteArrayOutputStream();
+            PdfWriter writer = new PdfWriter(baos);
+            PdfDocument pdf = new PdfDocument(writer);
+            Document document = new Document(pdf);
+            
+            // Title
+            document.add(new Paragraph("REORDER LIST")
+                .setFontSize(20)
+                .setBold());
+            document.add(new Paragraph("\n"));
+            
+            document.add(new Paragraph("Products Below Minimum Stock:").setBold());
+            document.add(new Paragraph("\n"));
+            
+            Table table = new Table(UnitValue.createPercentArray(new float[]{3, 1, 1, 1}));
+            table.setWidth(UnitValue.createPercentValue(100));
+            
+            table.addHeaderCell("Product Name");
+            table.addHeaderCell("Current");
+            table.addHeaderCell("Min");
+            table.addHeaderCell("Order");
+            
+            for (Product p : lowStock) {
+                int needed = p.getMinStock() - p.getStockLeft();
+                table.addCell(p.getName());
+                table.addCell(String.valueOf(p.getStockLeft()));
+                table.addCell(String.valueOf(p.getMinStock()));
+                table.addCell(needed + " units");
+            }
+            
+            document.add(table);
+            document.close();
+            
+            HttpHeaders headers = new HttpHeaders();
+            headers.setContentType(MediaType.APPLICATION_PDF);
+            headers.setContentDispositionFormData("attachment", "reorder-list.pdf");
+            
+            return ResponseEntity.ok()
+                .headers(headers)
+                .body(baos.toByteArray());
+        } catch (Exception e) {
+            return ResponseEntity.internalServerError().build();
         }
-        
-        return ResponseEntity.ok()
-            .header("Content-Disposition", "attachment; filename=reorder-list.txt")
-            .header("Content-Type", "text/plain")
-            .body(list.toString().getBytes());
     }
 }
