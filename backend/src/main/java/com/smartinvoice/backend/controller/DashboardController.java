@@ -38,16 +38,18 @@ public class DashboardController {
     
     @GetMapping("/stats")
     public ResponseEntity<DashboardStats> getStats() {
-        Long totalItems = productRepository.sumTotalStock();
-        List<Product> lowStock = productRepository.findLowStockProducts();
+        Long totalItems = productRepository.findAll().stream()
+            .mapToLong(p -> p.getStockLevel().longValue())
+            .sum();
+        List<Product> lowStock = productRepository.findByStockLevelLessThanEqual(10);
         Long invoicesCount = invoiceRepository.count();
         
         Double totalValue = productRepository.findAll().stream()
-            .mapToDouble(p -> p.getStockLeft() * 100.0)
+            .mapToDouble(p -> p.getStockLevel() * p.getPrice().doubleValue())
             .sum();
         
         return ResponseEntity.ok(new DashboardStats(
-            totalItems != null ? totalItems : 0L,
+            totalItems,
             lowStock.size(),
             invoicesCount,
             totalValue
@@ -76,10 +78,10 @@ public class DashboardController {
     
     @GetMapping("/low-stock")
     public ResponseEntity<List<ProductDTO>> getLowStockProducts() {
-        List<Product> products = productRepository.findLowStockProducts();
+        List<Product> products = productRepository.findByStockLevelLessThanEqual(10);
         
         List<ProductDTO> dtos = products.stream()
-            .map(p -> new ProductDTO(p.getId(), p.getName(), p.getStockLeft(), p.getMinStock()))
+            .map(p -> new ProductDTO(p.getId(), p.getName(), p.getStockLevel(), p.getThreshold(), p.getPrice()))
             .collect(Collectors.toList());
         
         return ResponseEntity.ok(dtos);
@@ -123,7 +125,7 @@ public class DashboardController {
             headerFont.setBold(true);
             headerStyle.setFont(headerFont);
             
-            String[] headers = {"ID", "Name", "Stock Left", "Min Stock"};
+            String[] headers = {"ID", "Name", "Stock Level", "Threshold", "Price"};
             for (int i = 0; i < headers.length; i++) {
                 Cell cell = headerRow.createCell(i);
                 cell.setCellValue(headers[i]);
@@ -136,8 +138,9 @@ public class DashboardController {
                 Row row = sheet.createRow(rowNum++);
                 row.createCell(0).setCellValue(p.getId());
                 row.createCell(1).setCellValue(p.getName());
-                row.createCell(2).setCellValue(p.getStockLeft());
-                row.createCell(3).setCellValue(p.getMinStock());
+                row.createCell(2).setCellValue(p.getStockLevel());
+                row.createCell(3).setCellValue(p.getThreshold());
+                row.createCell(4).setCellValue(p.getPrice().doubleValue());
             }
             
             // Auto-size columns
@@ -223,7 +226,7 @@ public class DashboardController {
     @GetMapping("/reorder-list")
     public ResponseEntity<byte[]> generateReorderList() {
         try {
-            List<Product> lowStock = productRepository.findLowStockProducts();
+            List<Product> lowStock = productRepository.findByStockLevelLessThanEqual(10);
             
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
             PdfWriter writer = new PdfWriter(baos);
@@ -248,10 +251,10 @@ public class DashboardController {
             table.addHeaderCell("Order");
             
             for (Product p : lowStock) {
-                int needed = p.getMinStock() - p.getStockLeft();
+                int needed = p.getThreshold() - p.getStockLevel();
                 table.addCell(p.getName());
-                table.addCell(String.valueOf(p.getStockLeft()));
-                table.addCell(String.valueOf(p.getMinStock()));
+                table.addCell(String.valueOf(p.getStockLevel()));
+                table.addCell(String.valueOf(p.getThreshold()));
                 table.addCell(needed + " units");
             }
             

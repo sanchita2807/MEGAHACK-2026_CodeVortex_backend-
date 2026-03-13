@@ -23,7 +23,7 @@ public class InventoryController {
         List<Product> products = productRepository.findAll();
         
         List<ProductDTO> dtos = products.stream()
-            .map(p -> new ProductDTO(p.getId(), p.getName(), p.getStockLeft(), p.getMinStock()))
+            .map(p -> new ProductDTO(p.getId(), p.getName(), p.getStockLevel(), p.getThreshold(), p.getPrice()))
             .collect(Collectors.toList());
         
         return ResponseEntity.ok(dtos);
@@ -31,18 +31,21 @@ public class InventoryController {
     
     @PostMapping("/products")
     public ResponseEntity<ProductDTO> addProduct(@RequestBody ProductDTO dto) {
-        Product product = new Product();
-        product.setName(dto.getName());
-        product.setStockLeft(dto.getStockLeft());
-        product.setMinStock(dto.getMinStock());
+        Product product = Product.builder()
+            .name(dto.getName())
+            .stockLevel(dto.getStockLevel())
+            .threshold(dto.getThreshold())
+            .price(dto.getPrice())
+            .build();
         
         Product saved = productRepository.save(product);
         
         return ResponseEntity.ok(new ProductDTO(
             saved.getId(),
             saved.getName(),
-            saved.getStockLeft(),
-            saved.getMinStock()
+            saved.getStockLevel(),
+            saved.getThreshold(),
+            saved.getPrice()
         ));
     }
     
@@ -52,16 +55,18 @@ public class InventoryController {
             .orElseThrow(() -> new RuntimeException("Product not found"));
         
         product.setName(dto.getName());
-        product.setStockLeft(dto.getStockLeft());
-        product.setMinStock(dto.getMinStock());
+        product.setStockLevel(dto.getStockLevel());
+        product.setThreshold(dto.getThreshold());
+        product.setPrice(dto.getPrice());
         
         Product updated = productRepository.save(product);
         
         return ResponseEntity.ok(new ProductDTO(
             updated.getId(),
             updated.getName(),
-            updated.getStockLeft(),
-            updated.getMinStock()
+            updated.getStockLevel(),
+            updated.getThreshold(),
+            updated.getPrice()
         ));
     }
     

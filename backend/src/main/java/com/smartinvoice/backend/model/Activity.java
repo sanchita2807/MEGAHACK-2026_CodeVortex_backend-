@@ -1,4 +1,4 @@
-package com.smartinvoice.backend.entity;
+package com.smartinvoice.backend.model;
 
 import jakarta.persistence.*;
 import lombok.AllArgsConstructor;
@@ -6,28 +6,32 @@ import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-import java.math.BigDecimal;
+import java.time.LocalDateTime;
 
 @Entity
-@Table(name = "products")
+@Table(name = "activities")
 @Data
 @Builder
 @NoArgsConstructor
 @AllArgsConstructor
-public class Product {
+public class Activity {
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
-    
+
     @Column(nullable = false)
-    private String name;
-    
+    private String title;
+
     @Column(nullable = false)
-    private Integer stockLevel;
-    
+    private String subtitle;
+
     @Column(nullable = false)
-    private Integer threshold;
-    
+    private String type; // success, info, warning
+
     @Column(nullable = false)
-    private BigDecimal price;
+    private String status; // Synced, Exported, etc.
+
+    @Column(nullable = false)
+    private LocalDateTime timestamp;
 }

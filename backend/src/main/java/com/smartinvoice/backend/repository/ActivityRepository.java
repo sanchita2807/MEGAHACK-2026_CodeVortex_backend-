@@ -1,12 +1,12 @@
 package com.smartinvoice.backend.repository;
 
-import com.smartinvoice.backend.entity.Product;
+import com.smartinvoice.backend.model.Activity;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
 
 @Repository
-public interface ProductRepository extends JpaRepository<Product, Long> {
-    List<Product> findByStockLevelLessThanEqual(Integer stockLevel);
+public interface ActivityRepository extends JpaRepository<Activity, Long> {
+    List<Activity> findTop10ByOrderByTimestampDesc();
 }
