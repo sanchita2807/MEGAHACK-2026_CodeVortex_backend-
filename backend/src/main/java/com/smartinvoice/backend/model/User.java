@@ -35,4 +35,9 @@ public class User {
 
     @Column(nullable = false)
     private String password;
+
+    @Column(nullable = false)
+    private Integer userType = 0; // 0 = regular user, 1 = admin
+
+    private boolean passwordSet = false;
 }
