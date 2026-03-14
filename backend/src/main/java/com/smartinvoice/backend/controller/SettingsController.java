@@ -18,7 +18,7 @@ public class SettingsController {
     
     @GetMapping("/admin/{email}")
     public ResponseEntity<SettingsDTO> getAdminSettings(@PathVariable String email) {
-        Admin admin = adminRepository.findByEmail(email);
+        Admin admin = adminRepository.findByEmail(email).orElse(null);
         if (admin == null) {
             return ResponseEntity.notFound().build();
         }
@@ -33,7 +33,7 @@ public class SettingsController {
     public ResponseEntity<Map<String, String>> updateAdminProfile(
             @PathVariable String email,
             @RequestBody SettingsDTO settingsDTO) {
-        Admin admin = adminRepository.findByEmail(email);
+        Admin admin = adminRepository.findByEmail(email).orElse(null);
         if (admin == null) {
             return ResponseEntity.notFound().build();
         }
@@ -47,7 +47,7 @@ public class SettingsController {
     public ResponseEntity<Map<String, String>> changePassword(
             @PathVariable String email,
             @RequestBody Map<String, String> passwordRequest) {
-        Admin admin = adminRepository.findByEmail(email);
+        Admin admin = adminRepository.findByEmail(email).orElse(null);
         if (admin == null) {
             return ResponseEntity.notFound().build();
         }

@@ -11,4 +11,5 @@ public interface InvoiceRepository extends JpaRepository<Invoice, Long> {
     List<Invoice> findByVendor(String vendor);
     List<Invoice> findByScanDateBetween(LocalDateTime startDate, LocalDateTime endDate);
     List<Invoice> findByStatus(String status);
+    List<Invoice> findTop10ByOrderByScanDateDesc();
 }

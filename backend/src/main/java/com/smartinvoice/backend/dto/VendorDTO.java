@@ -9,10 +9,19 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 public class VendorDTO {
     private Long id;
-    private String vendorName;
+    private String name;
     private String shopName;
-    private String phoneNumber;
+    private String phone;
     private String email;
     private String userType;
     private String status;
+    
+    // Getters for backward compatibility with old field names
+    public String getVendorName() {
+        return name;
+    }
+    
+    public String getPhoneNumber() {
+        return phone;
+    }
 }
